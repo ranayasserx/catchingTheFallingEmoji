@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Catch the Falling Emojis</title>
+</head>
+<body>
+  <h2>Catch the Falling Emojis</h2>
+
+  <div id="modeSelection">
+    <button onclick="startGame('single')">Single Player</button>
+    <button onclick="startGame('multiplayer')">Multiplayer</button>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <button id="restartBtn">Restart Game</button>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let score = 0;
+    let lives = 5;
+    let gameOver = false;
+    let gameMode = null;
+    const emojisList = ["🩷", "🧸"];
+    const restartBtn = document.getElementById("restartBtn");
+    restartBtn.style.display = "none";
+
+
+    class Emoji {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.emoji = emojisList[Math.floor(Math.random() * emojisList.length)];
+        this.dy = Math.random() * 2 + 0.5;
+        this.fontSize = 32;
+      }
+
+      draw() {
+        ctx.font = this.fontSize + "px serif";
+        ctx.fillText(this.emoji, this.x, this.y);
+      }
+
+      update(deltaTime) {
+        this.y += this.dy * (deltaTime / 16);
+      }
+
+      reset() {
+        this.x = Math.random() * (canvas.width - 40);
+        this.y = 0;
+        this.dy = Math.random() * 2 + 2;
+        this.emoji = emojisList[Math.floor(Math.random() * emojisList.length)];
+      }
+    }
+
+    class Paddle {
+      constructor(x, y, width = 150, height = 20, color = "#f7dd72") {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.color = color;
+        this.dx = 0;
+      }
+
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+      }
+
+      update() {
+        this.x += this.dx * 5;
+        if (this.x < 0) this.x = 0;
+        if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+      }
+    }
+
+    const emojis = [];
+    const paddle1 = new Paddle(325, 550);
+    let paddle2 = null;
+
+    function drawScoreAndLives() {
+      ctx.fillStyle = "#000";
+      ctx.font = "16px Arial";
+      ctx.fillText("Score: " + score, 40, 20);
+      ctx.fillText("Lives: " + lives, canvas.width - 100, 20);
+    }
+
+    let lastTime = 0;
+    function updateGame(timestamp) {
+      const deltaTime = timestamp - lastTime;
+      lastTime = timestamp;
+
+      ctx.fillStyle = "#98eaff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 5;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+      drawScoreAndLives();
+
+      for (let i = 0; i < emojis.length; i++) {
+        let emoji = emojis[i];
+        emoji.update(deltaTime);
+        emoji.draw();
+
+        if (
+          emoji.y + emoji.fontSize >= paddle1.y &&
+          emoji.x >= paddle1.x &&
+          emoji.x <= paddle1.x + paddle1.width
+        ) {
+          score++;
+          emoji.reset();
+        }
+
+        if (gameMode === 'multiplayer' &&
+          emoji.y + emoji.fontSize >= paddle2.y &&
+          emoji.x >= paddle2.x &&
+          emoji.x <= paddle2.x + paddle2.width
+        ) {
+          score++;
+          emoji.reset();
+        }
+
+        if (emoji.y > canvas.height) {
+          lives--;
+          emoji.reset();
+          if (lives <= 0) {
+            gameOver = true;
+            showGameOver();
+          }
+        }
+      }
+
+      paddle1.update();
+      paddle1.draw();
+
+      if (gameMode === 'multiplayer') {
+        paddle2.update();
+        paddle2.draw();
+      }
+
+      if (!gameOver) {
+        requestAnimationFrame(updateGame);
+      }
+    }
+
+    function showGameOver() {
+      ctx.fillStyle = "red";
+      ctx.font = "70px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+
+      restartBtn.style.display = "block";
+      document.body.style.cursor = 'auto';
+    }
+
+    function restartGame() {
+      score = 0;
+      lives = 5;
+      gameOver = false;
+      emojis.length = 0;
+
+      for (let i = 0; i < 5; i++) {
+        emojis.push(new Emoji(Math.random() * 750, Math.random() * -600));
+      }
+
+      paddle1.x = 325;
+      if (gameMode === 'multiplayer') {
+        paddle2 = new Paddle(325, 500, 150, 20, "#f78282");
+      }
+
+      restartBtn.style.display = "none";
+      document.body.style.cursor = 'none';
+      requestAnimationFrame(updateGame);
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === "ArrowLeft") paddle1.dx = -1;
+      if (e.key === "ArrowRight") paddle1.dx = 1;
+      if (gameMode === 'multiplayer') {
+        if (e.key === "a" || e.key === "A") paddle2.dx = -1;
+        if (e.key === "d" || e.key === "D") paddle2.dx = 1;
+      }
+    });
+
+    document.addEventListener('keyup', function (e) {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") paddle1.dx = 0;
+      if (gameMode === 'multiplayer') {
+        if (e.key === "a" || e.key === "A" || e.key === "d" || e.key === "D") paddle2.dx = 0;
+      }
+    });
+
+    canvas.addEventListener("mousemove", function (e) {
+      if (!gameOver && gameMode === 'single') {
+        paddle1.x = e.clientX - canvas.offsetLeft - paddle1.width / 2;
+      }
+    });
+
+    restartBtn.addEventListener("click", function () {
+      restartBtn.style.display = "none";
+      document.getElementById("modeSelection").style.display = "block";
+      document.body.style.cursor = 'auto';
+    });
+
+    let bounceEmojis = [];
+
+function animateStartScreen() {
+  if (gameMode !== null) return; 
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#000";
+  ctx.font = "36px Arial";
+  ctx.fillText("Catch the Falling Emojis!", 240, 150);
+
+  for (let emoji of bounceEmojis) {
+    emoji.y += emoji.dy;
+    if (emoji.y > canvas.height || emoji.y < 0) emoji.dy *= -1;
+
+    ctx.font = emoji.fontSize + "px serif";
+    ctx.fillText(emoji.char, emoji.x, emoji.y);
+  }
+
+  requestAnimationFrame(animateStartScreen);
+}
+
+for (let i = 0; i < 10; i++) {
+  bounceEmojis.push({
+    x: Math.random() * 750,
+    y: Math.random() * 500,
+    dy: Math.random() * 2 + 1,
+    char: emojisList[Math.floor(Math.random() * emojisList.length)],
+    fontSize: 32 + Math.random() * 16
+  });
+}
+
+animateStartScreen();
+    function startGame(mode) {
+      gameMode = mode;
+      document.getElementById("modeSelection").style.display = "none";
+      restartGame();
+    }
+  </script>
+</body>
+</html>
